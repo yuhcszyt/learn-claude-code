@@ -46,16 +46,19 @@ import uuid
 from pathlib import Path
 from queue import Queue
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
 
+try:
+    from .openai_compat import OpenAICompatibleClient
+except ImportError:
+    from openai_compat import OpenAICompatibleClient
+
 load_dotenv(override=True)
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
+# 完整示例共用一个 OpenAI 兼容客户端；密钥、地址、模型都放在 .env。
+client = OpenAICompatibleClient.from_env()
+MODEL = client.model
 
 TEAM_DIR = WORKDIR / ".team"
 INBOX_DIR = TEAM_DIR / "inbox"
@@ -71,6 +74,7 @@ VALID_MSG_TYPES = {"message", "broadcast", "shutdown_request",
 
 
 # === SECTION: base_tools ===
+# 基础工具层：所有高级机制最后都落到这些 Python 函数上。
 def safe_path(p: str) -> Path:
     path = (WORKDIR / p).resolve()
     if not path.is_relative_to(WORKDIR):
@@ -120,6 +124,7 @@ def run_edit(path: str, old_text: str, new_text: str) -> str:
 
 
 # === SECTION: todos (s03) ===
+# TodoManager 是一个很小的状态对象，适合对照 Java class + List 来理解。
 class TodoManager:
     def __init__(self):
         self.items = []
@@ -157,6 +162,7 @@ class TodoManager:
 
 
 # === SECTION: subagent (s04) ===
+# 子代理使用独立 messages，实现“上下文隔离”，执行完只返回摘要。
 def run_subagent(prompt: str, agent_type: str = "Explore") -> str:
     sub_tools = [
         {"name": "bash", "description": "Run command.",
@@ -196,6 +202,7 @@ def run_subagent(prompt: str, agent_type: str = "Explore") -> str:
 
 
 # === SECTION: skills (s05) ===
+# 技能系统按需读取 SKILL.md，避免把所有知识一次性塞进 system prompt。
 class SkillLoader:
     def __init__(self, skills_dir: Path):
         self.skills = {}
@@ -224,6 +231,7 @@ class SkillLoader:
 
 
 # === SECTION: compression (s06) ===
+# 压缩层负责控制上下文长度，不改变外部工具的行为。
 def estimate_tokens(messages: list) -> int:
     return len(json.dumps(messages, default=str)) // 4
 
@@ -259,6 +267,7 @@ def auto_compact(messages: list) -> list:
 
 
 # === SECTION: file_tasks (s07) ===
+# 文件任务系统把长期状态放到 .tasks，而不是只依赖模型记忆。
 class TaskManager:
     def __init__(self):
         TASKS_DIR.mkdir(exist_ok=True)
@@ -325,6 +334,7 @@ class TaskManager:
 
 
 # === SECTION: background (s08) ===
+# 后台任务用线程模拟异步执行，下一轮循环再收通知。
 class BackgroundManager:
     def __init__(self):
         self.tasks = {}
@@ -361,6 +371,7 @@ class BackgroundManager:
 
 
 # === SECTION: messaging (s09) ===
+# 消息总线用 JSONL 文件连接多个队友线程。
 class MessageBus:
     def __init__(self):
         INBOX_DIR.mkdir(parents=True, exist_ok=True)
@@ -396,6 +407,7 @@ plan_requests = {}
 
 
 # === SECTION: team (s09/s11) ===
+# TeammateManager 负责队友线程、空闲轮询和自动领任务。
 class TeammateManager:
     def __init__(self, bus: MessageBus, task_mgr: TaskManager):
         TEAM_DIR.mkdir(exist_ok=True)

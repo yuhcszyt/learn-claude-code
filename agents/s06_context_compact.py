@@ -40,17 +40,19 @@ import subprocess
 import time
 from pathlib import Path
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
+
+try:
+    from .openai_compat import OpenAICompatibleClient
+except ImportError:
+    from openai_compat import OpenAICompatibleClient
 
 load_dotenv(override=True)
 
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
-
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
+# OpenAI 兼容客户端隐藏协议差异，本文件专注讲“上下文压缩”。
+client = OpenAICompatibleClient.from_env()
+MODEL = client.model
 
 SYSTEM = f"You are a coding agent at {WORKDIR}. Use tools to solve tasks."
 
@@ -65,7 +67,7 @@ def estimate_tokens(messages: list) -> int:
     return len(str(messages)) // 4
 
 
-# -- Layer 1: micro_compact - replace old tool results with placeholders --
+# 第一层：微压缩。保留最近工具结果，把更早的大输出替换成占位文本。
 def micro_compact(messages: list) -> list:
     # Collect (msg_index, part_index, tool_result_dict) for all tool_result entries
     tool_results = []
@@ -99,7 +101,7 @@ def micro_compact(messages: list) -> list:
     return messages
 
 
-# -- Layer 2: auto_compact - save transcript, summarize, replace messages --
+# 第二层：自动压缩。保存完整 transcript，再让模型生成延续用摘要。
 def auto_compact(messages: list) -> list:
     # Save full transcript to disk
     TRANSCRIPT_DIR.mkdir(exist_ok=True)
@@ -127,7 +129,7 @@ def auto_compact(messages: list) -> list:
     ]
 
 
-# -- Tool implementations --
+# 基础工具实现：压缩逻辑不改变工具本身，只改变 messages 的大小。
 def safe_path(p: str) -> Path:
     path = (WORKDIR / p).resolve()
     if not path.is_relative_to(WORKDIR):

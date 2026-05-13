@@ -41,21 +41,23 @@ import subprocess
 import yaml
 from pathlib import Path
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
+
+try:
+    from .openai_compat import OpenAICompatibleClient
+except ImportError:
+    from openai_compat import OpenAICompatibleClient
 
 load_dotenv(override=True)
 
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
-
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
+# API 配置来自 .env，技能加载逻辑和具体模型供应商解耦。
+client = OpenAICompatibleClient.from_env()
+MODEL = client.model
 SKILLS_DIR = WORKDIR / "skills"
 
 
-# -- SkillLoader: scan skills/<name>/SKILL.md with YAML frontmatter --
+# SkillLoader：扫描 skills/<name>/SKILL.md，读取 YAML frontmatter 和正文。
 class SkillLoader:
     def __init__(self, skills_dir: Path):
         self.skills_dir = skills_dir
@@ -106,7 +108,7 @@ class SkillLoader:
 
 SKILL_LOADER = SkillLoader(SKILLS_DIR)
 
-# Layer 1: skill metadata injected into system prompt
+# 第一层：只把技能名和短描述放进 system prompt，避免上下文一开始就膨胀。
 SYSTEM = f"""You are a coding agent at {WORKDIR}.
 Use load_skill to access specialized knowledge before tackling unfamiliar topics.
 
@@ -114,7 +116,7 @@ Skills available:
 {SKILL_LOADER.get_descriptions()}"""
 
 
-# -- Tool implementations --
+# 工具实现：load_skill 会在模型需要时返回完整技能正文。
 def safe_path(p: str) -> Path:
     path = (WORKDIR / p).resolve()
     if not path.is_relative_to(WORKDIR):

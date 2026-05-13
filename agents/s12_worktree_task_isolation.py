@@ -37,21 +37,23 @@ import subprocess
 import time
 from pathlib import Path
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
+
+try:
+    from .openai_compat import OpenAICompatibleClient
+except ImportError:
+    from openai_compat import OpenAICompatibleClient
 
 load_dotenv(override=True)
 
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
-
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
+# 工作树隔离逻辑完全本地执行；模型请求走 .env 的 OpenAI 兼容配置。
+client = OpenAICompatibleClient.from_env()
+MODEL = client.model
 
 
 def detect_repo_root(cwd: Path) -> Path | None:
-    """Return git repo root if cwd is inside a repo, else None."""
+    """如果当前目录在 git 仓库中，返回仓库根目录；否则返回 None。"""
     try:
         r = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
@@ -79,7 +81,7 @@ SYSTEM = (
 )
 
 
-# -- EventBus: append-only lifecycle events for observability --
+# EventBus：追加写 JSONL 事件，方便观察 worktree 的创建/移除生命周期。
 class EventBus:
     def __init__(self, event_log_path: Path):
         self.path = event_log_path
@@ -118,7 +120,7 @@ class EventBus:
         return json.dumps(items, indent=2)
 
 
-# -- TaskManager: persistent task board with optional worktree binding --
+# TaskManager：持久化任务看板，并可把任务绑定到某个 worktree。
 class TaskManager:
     def __init__(self, tasks_dir: Path):
         self.dir = tasks_dir
@@ -221,7 +223,7 @@ TASKS = TaskManager(REPO_ROOT / ".tasks")
 EVENTS = EventBus(REPO_ROOT / ".worktrees" / "events.jsonl")
 
 
-# -- WorktreeManager: create/list/run/remove git worktrees + lifecycle index --
+# WorktreeManager：封装 git worktree 的创建、运行命令、保留和移除。
 class WorktreeManager:
     def __init__(self, repo_root: Path, tasks: TaskManager, events: EventBus):
         self.repo_root = repo_root
@@ -474,7 +476,7 @@ class WorktreeManager:
 WORKTREES = WorktreeManager(REPO_ROOT, TASKS, EVENTS)
 
 
-# -- Base tools (kept minimal, same style as previous sessions) --
+# 基础工具：保留前几节的简单形态，新增 worktree_* 工具体现目录隔离。
 def safe_path(p: str) -> Path:
     path = (WORKDIR / p).resolve()
     if not path.is_relative_to(WORKDIR):

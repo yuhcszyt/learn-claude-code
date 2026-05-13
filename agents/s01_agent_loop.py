@@ -38,16 +38,19 @@ try:
 except ImportError:
     pass
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
+
+try:
+    from .openai_compat import OpenAICompatibleClient
+except ImportError:
+    from openai_compat import OpenAICompatibleClient
 
 load_dotenv(override=True)
 
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
-
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
+# 从 .env 读取 OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL。
+# OpenAICompatibleClient 会把本教程的 tool_use 格式转换成 OpenAI tool_calls。
+client = OpenAICompatibleClient.from_env()
+MODEL = client.model
 
 SYSTEM = f"You are a coding agent at {os.getcwd()}. Use bash to solve tasks. Act, don't explain."
 
@@ -77,7 +80,7 @@ def run_bash(command: str) -> str:
         return f"Error: {e}"
 
 
-# -- The core pattern: a while loop that calls tools until the model stops --
+# 核心模式：一直“调用模型 -> 执行工具 -> 回填结果”，直到模型不再请求工具。
 def agent_loop(messages: list):
     while True:
         response = client.messages.create(

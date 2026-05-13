@@ -50,16 +50,19 @@ import threading
 import time
 from pathlib import Path
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
 
+try:
+    from .openai_compat import OpenAICompatibleClient
+except ImportError:
+    from openai_compat import OpenAICompatibleClient
+
 load_dotenv(override=True)
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
+# 每个队友线程都复用这个 OpenAI 兼容客户端配置。
+client = OpenAICompatibleClient.from_env()
+MODEL = client.model
 TEAM_DIR = WORKDIR / ".team"
 INBOX_DIR = TEAM_DIR / "inbox"
 
@@ -74,7 +77,7 @@ VALID_MSG_TYPES = {
 }
 
 
-# -- MessageBus: JSONL inbox per teammate --
+# MessageBus：每个队友一个 JSONL inbox，类似用文件系统实现极简消息队列。
 class MessageBus:
     def __init__(self, inbox_dir: Path):
         self.dir = inbox_dir
@@ -120,7 +123,7 @@ class MessageBus:
 BUS = MessageBus(INBOX_DIR)
 
 
-# -- TeammateManager: persistent named agents with config.json --
+# TeammateManager：管理“持久队友”的生命周期和线程。
 class TeammateManager:
     def __init__(self, team_dir: Path):
         self.dir = team_dir
@@ -251,7 +254,7 @@ class TeammateManager:
 TEAM = TeammateManager(TEAM_DIR)
 
 
-# -- Base tool implementations (these base tools are unchanged from s02) --
+# 基础工具实现：队友和 lead 都通过这些函数访问 shell/文件。
 def _safe_path(p: str) -> Path:
     path = (WORKDIR / p).resolve()
     if not path.is_relative_to(WORKDIR):
@@ -306,7 +309,7 @@ def _run_edit(path: str, old_text: str, new_text: str) -> str:
         return f"Error: {e}"
 
 
-# -- Lead tool dispatch (9 tools) --
+# Lead 的工具分发表：包含基础工具、队友管理和消息通信。
 TOOL_HANDLERS = {
     "bash":            lambda **kw: _run_bash(kw["command"]),
     "read_file":       lambda **kw: _run_read(kw["path"], kw.get("limit")),

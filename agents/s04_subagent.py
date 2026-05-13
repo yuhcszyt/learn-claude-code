@@ -27,23 +27,25 @@ import os
 import subprocess
 from pathlib import Path
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
+
+try:
+    from .openai_compat import OpenAICompatibleClient
+except ImportError:
+    from openai_compat import OpenAICompatibleClient
 
 load_dotenv(override=True)
 
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
-
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
+# 父代理和子代理共用同一个 OpenAI 兼容客户端配置。
+client = OpenAICompatibleClient.from_env()
+MODEL = client.model
 
 SYSTEM = f"You are a coding agent at {WORKDIR}. Use the task tool to delegate exploration or subtasks."
 SUBAGENT_SYSTEM = f"You are a coding subagent at {WORKDIR}. Complete the given task, then summarize your findings."
 
 
-# -- Tool implementations shared by parent and child --
+# 父代理和子代理共享这些基础工具；隔离的是 messages 上下文，不是文件系统。
 def safe_path(p: str) -> Path:
     path = (WORKDIR / p).resolve()
     if not path.is_relative_to(WORKDIR):
@@ -114,7 +116,7 @@ CHILD_TOOLS = [
 ]
 
 
-# -- Subagent: fresh context, filtered tools, summary-only return --
+# 子代理：新建一份 messages，相当于 Java 里创建一个新的工作对象，不复用父对象状态。
 def run_subagent(prompt: str) -> str:
     sub_messages = [{"role": "user", "content": prompt}]  # fresh context
     for _ in range(30):  # safety limit
@@ -136,7 +138,7 @@ def run_subagent(prompt: str) -> str:
     return "".join(b.text for b in response.content if hasattr(b, "text")) or "(no summary)"
 
 
-# -- Parent tools: base tools + task dispatcher --
+# 父代理工具 = 基础工具 + task。task 会启动子代理并只返回摘要。
 PARENT_TOOLS = CHILD_TOOLS + [
     {"name": "task", "description": "Spawn a subagent with fresh context. It shares the filesystem but not conversation history.",
      "input_schema": {"type": "object", "properties": {"prompt": {"type": "string"}, "description": {"type": "string", "description": "Short description of the task"}}, "required": ["prompt"]}},

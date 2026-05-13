@@ -55,16 +55,19 @@ import time
 import uuid
 from pathlib import Path
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
 
+try:
+    from .openai_compat import OpenAICompatibleClient
+except ImportError:
+    from openai_compat import OpenAICompatibleClient
+
 load_dotenv(override=True)
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
+# 协议状态在本地内存和文件里，模型调用通过 .env 的 OpenAI 兼容接口。
+client = OpenAICompatibleClient.from_env()
+MODEL = client.model
 TEAM_DIR = WORKDIR / ".team"
 INBOX_DIR = TEAM_DIR / "inbox"
 
@@ -78,13 +81,13 @@ VALID_MSG_TYPES = {
     "plan_approval_response",
 }
 
-# -- Request trackers: correlate by request_id --
+# 请求追踪器：用 request_id 把请求和响应关联起来，像简化版 RPC correlation id。
 shutdown_requests = {}
 plan_requests = {}
 _tracker_lock = threading.Lock()
 
 
-# -- MessageBus: JSONL inbox per teammate --
+# MessageBus：仍然使用 JSONL inbox，只是消息类型更结构化。
 class MessageBus:
     def __init__(self, inbox_dir: Path):
         self.dir = inbox_dir
@@ -130,7 +133,7 @@ class MessageBus:
 BUS = MessageBus(INBOX_DIR)
 
 
-# -- TeammateManager with shutdown + plan approval --
+# TeammateManager：在 s09 的队友模型上增加 shutdown 和 plan approval 协议。
 class TeammateManager:
     def __init__(self, team_dir: Path):
         self.dir = team_dir
@@ -347,7 +350,7 @@ def _run_edit(path: str, old_text: str, new_text: str) -> str:
         return f"Error: {e}"
 
 
-# -- Lead-specific protocol handlers --
+# Lead 专属协议处理：创建请求、记录状态、向目标队友投递消息。
 def handle_shutdown_request(teammate: str) -> str:
     req_id = str(uuid.uuid4())[:8]
     with _tracker_lock:
@@ -378,7 +381,7 @@ def _check_shutdown_status(request_id: str) -> str:
         return json.dumps(shutdown_requests.get(request_id, {"error": "not found"}))
 
 
-# -- Lead tool dispatch (12 tools) --
+# Lead 的工具分发表：基础工具 + 队伍工具 + 两个协议工具。
 TOOL_HANDLERS = {
     "bash":              lambda **kw: _run_bash(kw["command"]),
     "read_file":         lambda **kw: _run_read(kw["path"], kw.get("limit")),

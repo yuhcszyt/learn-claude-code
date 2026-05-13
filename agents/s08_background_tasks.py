@@ -31,22 +31,24 @@ import threading
 import uuid
 from pathlib import Path
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
+
+try:
+    from .openai_compat import OpenAICompatibleClient
+except ImportError:
+    from openai_compat import OpenAICompatibleClient
 
 load_dotenv(override=True)
 
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
-
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
+# 模型调用走 OpenAI 兼容接口；后台任务只是在本地线程里执行 shell。
+client = OpenAICompatibleClient.from_env()
+MODEL = client.model
 
 SYSTEM = f"You are a coding agent at {WORKDIR}. Use background_run for long-running commands."
 
 
-# -- BackgroundManager: threaded execution + notification queue --
+# BackgroundManager：用线程执行长任务，用队列把完成通知送回下一轮模型调用。
 class BackgroundManager:
     def __init__(self):
         self.tasks = {}  # task_id -> {status, result, command}
@@ -111,7 +113,7 @@ class BackgroundManager:
 BG = BackgroundManager()
 
 
-# -- Tool implementations --
+# 工具实现：background_run 立即返回 task_id，避免代理循环被长命令卡住。
 def safe_path(p: str) -> Path:
     path = (WORKDIR / p).resolve()
     if not path.is_relative_to(WORKDIR):

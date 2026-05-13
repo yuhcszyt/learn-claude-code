@@ -31,24 +31,26 @@ import os
 import subprocess
 from pathlib import Path
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
+
+try:
+    from .openai_compat import OpenAICompatibleClient
+except ImportError:
+    from openai_compat import OpenAICompatibleClient
 
 load_dotenv(override=True)
 
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
-
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
+# 从 .env 读取 OpenAI 兼容配置；OPENAI_MODEL 决定实际调用的模型。
+client = OpenAICompatibleClient.from_env()
+MODEL = client.model
 
 SYSTEM = f"""You are a coding agent at {WORKDIR}.
 Use the todo tool to plan multi-step tasks. Mark in_progress before starting, completed when done.
 Prefer tools over prose."""
 
 
-# -- TodoManager: structured state the LLM writes to --
+# TodoManager：把“计划”放在 Python 对象里，而不是只藏在模型上下文文本里。
 class TodoManager:
     def __init__(self):
         self.items = []
@@ -89,7 +91,7 @@ class TodoManager:
 TODO = TodoManager()
 
 
-# -- Tool implementations --
+# 工具实现：这些函数是真正碰文件系统或 shell 的地方，模型只能通过工具间接调用。
 def safe_path(p: str) -> Path:
     path = (WORKDIR / p).resolve()
     if not path.is_relative_to(WORKDIR):
@@ -160,7 +162,7 @@ TOOLS = [
 ]
 
 
-# -- Agent loop with nag reminder injection --
+# 带提醒的代理循环：如果模型太久不更新 todo，就把提醒作为下一轮输入塞回去。
 def agent_loop(messages: list):
     rounds_since_todo = 0
     while True:

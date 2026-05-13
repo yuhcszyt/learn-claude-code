@@ -43,16 +43,19 @@ import time
 import uuid
 from pathlib import Path
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
 
+try:
+    from .openai_compat import OpenAICompatibleClient
+except ImportError:
+    from openai_compat import OpenAICompatibleClient
+
 load_dotenv(override=True)
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
 
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
+# 自主队友循环共享同一个 OpenAI 兼容客户端；模型名来自 OPENAI_MODEL。
+client = OpenAICompatibleClient.from_env()
+MODEL = client.model
 TEAM_DIR = WORKDIR / ".team"
 INBOX_DIR = TEAM_DIR / "inbox"
 TASKS_DIR = WORKDIR / ".tasks"
@@ -70,14 +73,14 @@ VALID_MSG_TYPES = {
     "plan_approval_response",
 }
 
-# -- Request trackers --
+# 请求追踪器和抢任务锁：多线程场景下要避免两个队友同时认领同一任务。
 shutdown_requests = {}
 plan_requests = {}
 _tracker_lock = threading.Lock()
 _claim_lock = threading.Lock()
 
 
-# -- MessageBus: JSONL inbox per teammate --
+# MessageBus：文件 inbox 让队友线程之间可以异步通信。
 class MessageBus:
     def __init__(self, inbox_dir: Path):
         self.dir = inbox_dir
@@ -123,7 +126,7 @@ class MessageBus:
 BUS = MessageBus(INBOX_DIR)
 
 
-# -- Task board scanning --
+# 任务看板扫描：空闲队友会自动寻找未领取、未阻塞的任务。
 def scan_unclaimed_tasks() -> list:
     TASKS_DIR.mkdir(exist_ok=True)
     unclaimed = []
@@ -156,7 +159,7 @@ def claim_task(task_id: int, owner: str) -> str:
     return f"Claimed task #{task_id} for {owner}"
 
 
-# -- Identity re-injection after compression --
+# 身份再注入：上下文被压缩后，用一个短块提醒模型“我是谁”。
 def make_identity_block(name: str, role: str, team_name: str) -> dict:
     return {
         "role": "user",
@@ -164,7 +167,7 @@ def make_identity_block(name: str, role: str, team_name: str) -> dict:
     }
 
 
-# -- Autonomous TeammateManager --
+# Autonomous TeammateManager：把 work/idle/poll 这几个阶段串成队友生命周期。
 class TeammateManager:
     def __init__(self, team_dir: Path):
         self.dir = team_dir
@@ -435,7 +438,7 @@ def _run_edit(path: str, old_text: str, new_text: str) -> str:
         return f"Error: {e}"
 
 
-# -- Lead-specific protocol handlers --
+# Lead 专属协议处理：和 s10 相同，只是队友现在会自主空闲和领任务。
 def handle_shutdown_request(teammate: str) -> str:
     req_id = str(uuid.uuid4())[:8]
     with _tracker_lock:
@@ -466,7 +469,7 @@ def _check_shutdown_status(request_id: str) -> str:
         return json.dumps(shutdown_requests.get(request_id, {"error": "not found"}))
 
 
-# -- Lead tool dispatch (14 tools) --
+# Lead 的工具分发表：增加 idle/claim_task，配合自主任务看板。
 TOOL_HANDLERS = {
     "bash":              lambda **kw: _run_bash(kw["command"]),
     "read_file":         lambda **kw: _run_read(kw["path"], kw.get("limit")),

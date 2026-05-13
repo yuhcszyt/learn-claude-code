@@ -27,23 +27,25 @@ import os
 import subprocess
 from pathlib import Path
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
+
+try:
+    from .openai_compat import OpenAICompatibleClient
+except ImportError:
+    from openai_compat import OpenAICompatibleClient
 
 load_dotenv(override=True)
 
-if os.getenv("ANTHROPIC_BASE_URL"):
-    os.environ.pop("ANTHROPIC_AUTH_TOKEN", None)
-
 WORKDIR = Path.cwd()
-client = Anthropic(base_url=os.getenv("ANTHROPIC_BASE_URL"))
-MODEL = os.environ["MODEL_ID"]
+# 从 .env 获取 OpenAI 兼容配置；任务系统状态保存在本地 JSON 文件里。
+client = OpenAICompatibleClient.from_env()
+MODEL = client.model
 TASKS_DIR = WORKDIR / ".tasks"
 
 SYSTEM = f"You are a coding agent at {WORKDIR}. Use task tools to plan and track work."
 
 
-# -- TaskManager: CRUD with dependency graph, persisted as JSON files --
+# TaskManager：用 JSON 文件实现简单 CRUD 和依赖图，便于观察状态变化。
 class TaskManager:
     def __init__(self, tasks_dir: Path):
         self.dir = tasks_dir
@@ -121,7 +123,7 @@ class TaskManager:
 TASKS = TaskManager(TASKS_DIR)
 
 
-# -- Base tool implementations --
+# 基础工具：和前几节相同，新增的是 task_* 这一组持久化工具。
 def safe_path(p: str) -> Path:
     path = (WORKDIR / p).resolve()
     if not path.is_relative_to(WORKDIR):
