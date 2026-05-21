@@ -54,33 +54,47 @@ WORKDIR = Path.cwd()
 # API 配置来自 .env，技能加载逻辑和具体模型供应商解耦。
 client = OpenAICompatibleClient.from_env()
 MODEL = client.model
-SKILLS_DIR = WORKDIR / "skills"
+# 读取当前工作目录上一级目录里的 skills，例如 WORKDIR=repo/app 时读取 repo/skills。
+SKILLS_DIR = WORKDIR.parent / "skills"
 
 
 # SkillLoader：扫描 skills/<name>/SKILL.md，读取 YAML frontmatter 和正文。
+# 类比 Java：这是一个专门负责加载技能文件的 Service/Repository。
 class SkillLoader:
     def __init__(self, skills_dir: Path):
+        # self 类似 Java 里的 this，保存这个对象自己的状态。
         self.skills_dir = skills_dir
+        # dict 类似 Java 的 Map<String, Skill>，key 是技能名，value 是技能信息。
         self.skills = {}
         self._load_all()
 
     def _load_all(self):
+        # skills 目录不存在时直接返回；Python 用 early return 写法很常见。
         if not self.skills_dir.exists():
             return
+        # rglob("SKILL.md") 会递归查找所有名为 SKILL.md 的文件。
         for f in sorted(self.skills_dir.rglob("SKILL.md")):
             text = f.read_text()
             meta, body = self._parse_frontmatter(text)
+            # 优先使用 frontmatter 里的 name；没有就用目录名作为技能名。
             name = meta.get("name", f.parent.name)
             self.skills[name] = {"meta": meta, "body": body, "path": str(f)}
 
     def _parse_frontmatter(self, text: str) -> tuple:
         """Parse YAML frontmatter between --- delimiters."""
+        # frontmatter 是 Markdown 文件顶部的 YAML 配置块：
+        # ---
+        # name: pdf
+        # description: Process PDF files
+        # ---
         match = re.match(r"^---\n(.*?)\n---\n(.*)", text, re.DOTALL)
         if not match:
             return {}, text
         try:
+            # yaml.safe_load 把 YAML 字符串解析成 Python dict。
             meta = yaml.safe_load(match.group(1)) or {}
         except yaml.YAMLError:
+            # YAML 写错时不让整个 agent 崩掉，只当作没有元数据。
             meta = {}
         return meta, match.group(2).strip()
 
@@ -92,6 +106,7 @@ class SkillLoader:
         for name, skill in self.skills.items():
             desc = skill["meta"].get("description", "No description")
             tags = skill["meta"].get("tags", "")
+            # 这里只拼接技能的轻量摘要，放进 system prompt。
             line = f"  - {name}: {desc}"
             if tags:
                 line += f" [{tags}]"
@@ -100,6 +115,7 @@ class SkillLoader:
 
     def get_content(self, name: str) -> str:
         """Layer 2: full skill body returned in tool_result."""
+        # 第二层：模型真正调用 load_skill 时，才返回完整技能正文。
         skill = self.skills.get(name)
         if not skill:
             return f"Error: Unknown skill '{name}'. Available: {', '.join(self.skills.keys())}"
@@ -166,6 +182,8 @@ def run_edit(path: str, old_text: str, new_text: str) -> str:
 
 
 TOOL_HANDLERS = {
+    # 工具名 -> Python 函数。类比 Java 的 Map<String, Function>。
+    # lambda **kw 表示接收一组命名参数，比如 {"path": "...", "limit": 20}。
     "bash":       lambda **kw: run_bash(kw["command"]),
     "read_file":  lambda **kw: run_read(kw["path"], kw.get("limit")),
     "write_file": lambda **kw: run_write(kw["path"], kw["content"]),
@@ -173,6 +191,8 @@ TOOL_HANDLERS = {
     "load_skill": lambda **kw: SKILL_LOADER.get_content(kw["name"]),
 }
 
+# TOOLS 是暴露给模型看的“接口声明”，类似 Java 里写接口方法签名和参数类型。
+# name 必须和 TOOL_HANDLERS 里的 key 对得上，否则模型调用了工具也找不到实现。
 TOOLS = [
     {"name": "bash", "description": "Run a shell command.",
      "input_schema": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}},
@@ -189,6 +209,7 @@ TOOLS = [
 
 def agent_loop(messages: list):
     while True:
+        # 每一轮都把当前 messages、system prompt、工具声明发给模型。
         response = client.messages.create(
             model=MODEL, system=SYSTEM, messages=messages,
             tools=TOOLS, max_tokens=8000,
@@ -199,6 +220,7 @@ def agent_loop(messages: list):
         results = []
         for block in response.content:
             if block.type == "tool_use":
+                # block.name 是模型想调用的工具名，block.input 是模型给出的参数 dict。
                 handler = TOOL_HANDLERS.get(block.name)
                 try:
                     output = handler(**block.input) if handler else f"Unknown tool: {block.name}"
@@ -207,6 +229,7 @@ def agent_loop(messages: list):
                 print(f"> {block.name}:")
                 print(str(output)[:200])
                 results.append({"type": "tool_result", "tool_use_id": block.id, "content": str(output)})
+        # Anthropic 风格里，工具结果作为 user 消息回传；兼容层会再转成 OpenAI 的 role=tool。
         messages.append({"role": "user", "content": results})
 
 

@@ -131,3 +131,14 @@ python agents/s07_task_system.py
 2. `List all tasks and show the dependency graph`
 3. `Complete task 1 and then list tasks to see task 2 unblocked`
 4. `Create a task board for refactoring: parse -> transform -> emit -> test, where transform and emit can run in parallel after parse`
+
+
+
+创建 3 个任务：“初始化项目”、“编写代码”、“编写测试”。让它们按顺序互相依赖。
+
+列出所有任务，并展示任务之间的依赖关系图。
+
+完成任务 1，然后再次列出任务，看看任务 2 是否已经解除阻塞。
+
+创建一个用于重构的任务看板：解析 -> 转换 -> 输出 -> 测试，其中“转换”和“输出”可以在“解析”完成后并行执行。
+

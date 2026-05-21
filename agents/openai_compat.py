@@ -9,7 +9,7 @@ teaching shape, but sends real requests through the OpenAI-compatible
 """
 
 from __future__ import annotations
-
+import logging
 import json
 import os
 from dataclasses import dataclass
@@ -17,6 +17,10 @@ from typing import Any
 
 from openai import APIStatusError, OpenAI, OpenAIError
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(message)s"
+)
 
 @dataclass
 class TextBlock:
@@ -85,7 +89,6 @@ class OpenAICompatibleClient:
 
 class _Messages:
     """Imitates the tiny subset of Anthropic's ``messages`` client we use."""
-
     def __init__(self, client: OpenAI):
         self._client = client
 
@@ -103,6 +106,9 @@ class _Messages:
         openai_messages = []
         if system:
             openai_messages.append({"role": "system", "content": system})
+        # logging.info("Internal messages:\n%s", json.dumps(messages, default=str, ensure_ascii=False))
+        print("Anthropic message\n:"+json.dumps(messages, indent=2, default=str, ensure_ascii=False))
+
         openai_messages.extend(_to_openai_messages(messages))
 
         request: dict[str, Any] = {
@@ -117,6 +123,9 @@ class _Messages:
             request["max_tokens"] = max_tokens
 
         try:
+            # 打印日志
+            # logging.info("OpenAI request:\n%s", json.dumps(request,  default=str, ensure_ascii=False))
+            print("openAI:\n"+json.dumps(request,  default=str, ensure_ascii=False))
             response = self._client.chat.completions.create(**request)
         except APIStatusError as e:
             return MessageResponse(content=[TextBlock(text=_format_status_error(e))], stop_reason="api_error")

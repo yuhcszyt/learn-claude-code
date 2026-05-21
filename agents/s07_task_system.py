@@ -48,12 +48,18 @@ SYSTEM = f"You are a coding agent at {WORKDIR}. Use task tools to plan and track
 # TaskManager：用 JSON 文件实现简单 CRUD 和依赖图，便于观察状态变化。
 class TaskManager:
     def __init__(self, tasks_dir: Path):
+        # 保存任务目录路径，后续所有 task_*.json 都会读写到这个目录。
         self.dir = tasks_dir
+        # 确保任务目录存在；第一次运行时会自动创建 .tasks/。
         self.dir.mkdir(exist_ok=True)
+        # 根据磁盘上已有任务的最大 ID 推算下一个可用 ID，避免覆盖旧任务。
         self._next_id = self._max_id() + 1
 
     def _max_id(self) -> int:
+        # 找出任务目录里所有 task_*.json 文件，例如 task_12.json。
+        # f.stem 会去掉 .json 后缀得到 task_12；split("_")[1] 取出 12，再转成整数。
         ids = [int(f.stem.split("_")[1]) for f in self.dir.glob("task_*.json")]
+        # 如果已经有任务文件，就返回最大的任务 ID；否则返回 0，让第一个任务从 1 开始。
         return max(ids) if ids else 0
 
     def _load(self, task_id: int) -> dict:
@@ -67,12 +73,21 @@ class TaskManager:
         path.write_text(json.dumps(task, indent=2, ensure_ascii=False))
 
     def create(self, subject: str, description: str = "") -> str:
+        # 新任务的基础结构：
+        # id：当前可用的自增编号
+        # subject / description：任务标题和描述
+        # status：默认 pending，表示还没有开始
+        # blockedBy：依赖的任务 ID 列表，空列表表示不被任何任务阻塞
+        # owner：预留负责人字段，当前先置为空字符串
         task = {
             "id": self._next_id, "subject": subject, "description": description,
             "status": "pending", "blockedBy": [], "owner": "",
         }
+        # 写入 .tasks/task_<id>.json，把任务状态持久化到磁盘。
         self._save(task)
+        # 当前 ID 已经用掉，递增后留给下一次创建任务。
         self._next_id += 1
+        # 返回格式化后的 JSON 字符串，方便工具调用结果直接展示。
         return json.dumps(task, indent=2, ensure_ascii=False)
 
     def get(self, task_id: int) -> str:

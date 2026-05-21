@@ -26,6 +26,7 @@ Parent agent                     Subagent
 Parent context stays clean. Subagent context is discarded.
 ```
 
+
 ## 工作原理
 
 1. 父 Agent 有一个 `task` 工具。Subagent 拥有除 `task` 外的所有基础工具 (禁止递归生成)。
