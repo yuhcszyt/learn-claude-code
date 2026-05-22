@@ -45,6 +45,11 @@ request_id correlation pattern. Builds on s09's team messaging.
     Trackers: {request_id: {"target|from": name, "status": "pending|..."}}
 
 Key insight: "Same request_id correlation pattern, two domains."
+
+中文学习提示：
+    这一课不是新增很多工具，而是把“消息”升级成“协议”。
+    如果你写过 Java 后端，可以把 request_id 想成 correlation id：
+    请求发出后，响应不一定马上回来，所以要用 id 找回对应状态。
 """
 
 import json
@@ -66,6 +71,7 @@ load_dotenv(override=True)
 
 WORKDIR = Path.cwd()
 # 协议状态在本地内存和文件里，模型调用通过 .env 的 OpenAI 兼容接口。
+# 这里仍保持 lesson 代码的轻量风格，没有引入数据库或消息中间件。
 client = OpenAICompatibleClient.from_env()
 MODEL = client.model
 TEAM_DIR = WORKDIR / ".team"
@@ -82,12 +88,17 @@ VALID_MSG_TYPES = {
 }
 
 # 请求追踪器：用 request_id 把请求和响应关联起来，像简化版 RPC correlation id。
+#
+# shutdown_requests 和 plan_requests 是模块级 dict，类似 Java 里的 static Map。
+# 多个线程都可能读写它们，所以配一个 Lock 做最小同步保护。
 shutdown_requests = {}
 plan_requests = {}
 _tracker_lock = threading.Lock()
 
 
 # MessageBus：仍然使用 JSONL inbox，只是消息类型更结构化。
+#
+# s09 里消息主要是聊天；s10 里消息还承担“请求/响应”的协议语义。
 class MessageBus:
     def __init__(self, inbox_dir: Path):
         self.dir = inbox_dir
@@ -95,6 +106,7 @@ class MessageBus:
 
     def send(self, sender: str, to: str, content: str,
              msg_type: str = "message", extra: dict = None) -> str:
+        # msg_type 白名单让协议更可控，避免模型随手发出拼错的类型。
         if msg_type not in VALID_MSG_TYPES:
             return f"Error: Invalid type '{msg_type}'. Valid: {VALID_MSG_TYPES}"
         msg = {
@@ -104,6 +116,7 @@ class MessageBus:
             "timestamp": time.time(),
         }
         if extra:
+            # extra 用来挂 request_id、approve、feedback 这类协议字段。
             msg.update(extra)
         inbox_path = self.dir / f"{to}.jsonl"
         with open(inbox_path, "a") as f:
@@ -134,6 +147,9 @@ BUS = MessageBus(INBOX_DIR)
 
 
 # TeammateManager：在 s09 的队友模型上增加 shutdown 和 plan approval 协议。
+#
+# 注意：这不是让 teammate 直接被外部线程 kill 掉，而是通过消息请求它
+# “优雅退出”。这种设计更像 Java 服务中的 graceful shutdown。
 class TeammateManager:
     def __init__(self, team_dir: Path):
         self.dir = team_dir
@@ -154,9 +170,11 @@ class TeammateManager:
         for m in self.config["members"]:
             if m["name"] == name:
                 return m
+        # 教学简化：调用方会把 None 当成“不存在”处理。
         return None
 
     def spawn(self, name: str, role: str, prompt: str) -> str:
+        # 启动逻辑基本沿用 s09；这一课的增量主要在消息协议，而不是线程模型。
         member = self._find_member(name)
         if member:
             if member["status"] not in ("idle", "shutdown"):
@@ -177,6 +195,9 @@ class TeammateManager:
         return f"Spawned '{name}' (role: {role})"
 
     def _teammate_loop(self, name: str, role: str, prompt: str):
+        # sys_prompt 明确要求队友遵守两个协议：
+        # 1. 大动作前提交 plan_approval
+        # 2. 收到 shutdown_request 时用 shutdown_response 回应
         sys_prompt = (
             f"You are '{name}', role: {role}, at {WORKDIR}. "
             f"Submit plans via plan_approval before major work. "
@@ -185,6 +206,7 @@ class TeammateManager:
         messages = [{"role": "user", "content": prompt}]
         tools = self._teammate_tools()
         should_exit = False
+        # should_exit 是线程内部状态；只有队友批准 shutdown 后才变 True。
         for _ in range(50):
             inbox = BUS.read_inbox(name)
             for msg in inbox:
@@ -215,15 +237,17 @@ class TeammateManager:
                         "content": str(output),
                     })
                     if block.name == "shutdown_response" and block.input.get("approve"):
+                        # 模型用工具表达“我同意关闭”。真正停止线程的是 Python 控制流。
                         should_exit = True
             messages.append({"role": "user", "content": results})
         member = self._find_member(name)
         if member:
+            # 最终状态落盘到 .team/config.json，方便 CLI 的 /team 查看。
             member["status"] = "shutdown" if should_exit else "idle"
             self._save_config()
 
     def _exec(self, sender: str, tool_name: str, args: dict) -> str:
-        # these base tools are unchanged from s02
+        # 基础工具沿用前几课；下面两个分支是本课新增的协议工具。
         if tool_name == "bash":
             return _run_bash(args["command"])
         if tool_name == "read_file":
@@ -239,6 +263,8 @@ class TeammateManager:
         if tool_name == "shutdown_response":
             req_id = args["request_id"]
             approve = args["approve"]
+            # with lock 类似 Java try/finally 里的 lock.lock()/unlock()。
+            # 离开 with 代码块时会自动释放锁。
             with _tracker_lock:
                 if req_id in shutdown_requests:
                     shutdown_requests[req_id]["status"] = "approved" if approve else "rejected"
@@ -249,6 +275,7 @@ class TeammateManager:
             return f"Shutdown {'approved' if approve else 'rejected'}"
         if tool_name == "plan_approval":
             plan_text = args.get("plan", "")
+            # uuid4 生成全局随机 id；[:8] 是为了课堂输出短一点。
             req_id = str(uuid.uuid4())[:8]
             with _tracker_lock:
                 plan_requests[req_id] = {"from": sender, "plan": plan_text, "status": "pending"}
@@ -260,7 +287,8 @@ class TeammateManager:
         return f"Unknown tool: {tool_name}"
 
     def _teammate_tools(self) -> list:
-        # these base tools are unchanged from s02
+        # teammate 现在多了 shutdown_response 和 plan_approval 两个协议工具。
+        # 工具名就是协议动作，参数 schema 就是协议字段。
         return [
             {"name": "bash", "description": "Run a shell command.",
              "input_schema": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}},
@@ -298,6 +326,8 @@ TEAM = TeammateManager(TEAM_DIR)
 # -- Base tool implementations (these base tools are unchanged from s02) --
 def _safe_path(p: str) -> Path:
     path = (WORKDIR / p).resolve()
+    # pathlib 的 / 运算符用于拼路径，不是字符串拼接；
+    # 它会按当前操作系统选择正确的分隔符。
     if not path.is_relative_to(WORKDIR):
         raise ValueError(f"Path escapes workspace: {p}")
     return path
@@ -352,6 +382,8 @@ def _run_edit(path: str, old_text: str, new_text: str) -> str:
 
 # Lead 专属协议处理：创建请求、记录状态、向目标队友投递消息。
 def handle_shutdown_request(teammate: str) -> str:
+    # lead 发起 shutdown 时先登记 pending，再发消息。
+    # 这样即使响应稍后才到，也能通过 request_id 找回上下文。
     req_id = str(uuid.uuid4())[:8]
     with _tracker_lock:
         shutdown_requests[req_id] = {"target": teammate, "status": "pending"}
@@ -363,6 +395,7 @@ def handle_shutdown_request(teammate: str) -> str:
 
 
 def handle_plan_review(request_id: str, approve: bool, feedback: str = "") -> str:
+    # plan review 是反方向协议：teammate 先提交计划，lead 后审批。
     with _tracker_lock:
         req = plan_requests.get(request_id)
     if not req:
@@ -377,12 +410,15 @@ def handle_plan_review(request_id: str, approve: bool, feedback: str = "") -> st
 
 
 def _check_shutdown_status(request_id: str) -> str:
+    # 查询工具只读 tracker，不主动改变状态。
     with _tracker_lock:
         return json.dumps(shutdown_requests.get(request_id, {"error": "not found"}))
 
 
 # Lead 的工具分发表：基础工具 + 队伍工具 + 两个协议工具。
 TOOL_HANDLERS = {
+    # 注意 shutdown_request / shutdown_response 在 lead 和 teammate 侧含义不同：
+    # lead 的 shutdown_response 是“查询状态”，teammate 的是“发送响应”。
     "bash":              lambda **kw: _run_bash(kw["command"]),
     "read_file":         lambda **kw: _run_read(kw["path"], kw.get("limit")),
     "write_file":        lambda **kw: _run_write(kw["path"], kw["content"]),
@@ -430,6 +466,7 @@ def agent_loop(messages: list):
     while True:
         inbox = BUS.read_inbox("lead")
         if inbox:
+            # lead 收到的协议消息用 <inbox> 包起来，提醒模型这是外部事件。
             messages.append({
                 "role": "user",
                 "content": f"<inbox>{json.dumps(inbox, indent=2)}</inbox>",
@@ -449,6 +486,10 @@ def agent_loop(messages: list):
             if block.type == "tool_use":
                 handler = TOOL_HANDLERS.get(block.name)
                 try:
+                    # 统一分发让新增协议只需要：
+                    # 1. 写 handler
+                    # 2. 在 TOOL_HANDLERS 注册
+                    # 3. 在 TOOLS 暴露 schema
                     output = handler(**block.input) if handler else f"Unknown tool: {block.name}"
                 except Exception as e:
                     output = f"Error: {e}"

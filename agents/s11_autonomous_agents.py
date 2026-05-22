@@ -33,6 +33,11 @@ identity re-injection after context compression. Builds on s10's protocols.
     "You are 'coder', role: backend, team: my-team"
 
 Key insight: "The agent finds work itself."
+
+中文学习提示：
+    这一课把“别人派活”推进到“agent 自己找活”。
+    如果你熟悉 Java 里的后台 worker，可以把 teammate 想成一个长期运行的
+    Worker Thread：工作时处理当前任务，空闲时轮询 inbox 和任务看板。
 """
 
 import json
@@ -54,6 +59,7 @@ load_dotenv(override=True)
 
 WORKDIR = Path.cwd()
 # 自主队友循环共享同一个 OpenAI 兼容客户端；模型名来自 OPENAI_MODEL。
+# 课程重点是生命周期控制，所以这里没有把客户端封装成复杂服务对象。
 client = OpenAICompatibleClient.from_env()
 MODEL = client.model
 TEAM_DIR = WORKDIR / ".team"
@@ -62,6 +68,8 @@ TASKS_DIR = WORKDIR / ".tasks"
 
 POLL_INTERVAL = 5
 IDLE_TIMEOUT = 60
+# 空闲阶段最多轮询 60 秒，每 5 秒检查一次。
+# 这不是高性能调度器，只是用最小代码展示“自主找任务”的结构。
 
 SYSTEM = f"You are a team lead at {WORKDIR}. Teammates are autonomous -- they find work themselves."
 
@@ -74,6 +82,9 @@ VALID_MSG_TYPES = {
 }
 
 # 请求追踪器和抢任务锁：多线程场景下要避免两个队友同时认领同一任务。
+#
+# _tracker_lock 保护协议请求状态，_claim_lock 保护任务认领。
+# 在 Java 里你可能会用 synchronized、ReentrantLock 或数据库事务。
 shutdown_requests = {}
 plan_requests = {}
 _tracker_lock = threading.Lock()
@@ -81,6 +92,9 @@ _claim_lock = threading.Lock()
 
 
 # MessageBus：文件 inbox 让队友线程之间可以异步通信。
+#
+# 文件 inbox 的好处是透明、可调试；坏处是没有真正消息队列的并发保证。
+# 作为 lesson，它能让你直接打开 .team/inbox/*.jsonl 观察发生了什么。
 class MessageBus:
     def __init__(self, inbox_dir: Path):
         self.dir = inbox_dir
@@ -88,6 +102,7 @@ class MessageBus:
 
     def send(self, sender: str, to: str, content: str,
              msg_type: str = "message", extra: dict = None) -> str:
+        # 仍然使用 s10 的协议消息类型，方便自主 agent 也参与审批/关闭流程。
         if msg_type not in VALID_MSG_TYPES:
             return f"Error: Invalid type '{msg_type}'. Valid: {VALID_MSG_TYPES}"
         msg = {
@@ -127,11 +142,15 @@ BUS = MessageBus(INBOX_DIR)
 
 
 # 任务看板扫描：空闲队友会自动寻找未领取、未阻塞的任务。
+#
+# .tasks/task_*.json 就是一个最小任务看板。相比 Java class，这里直接用 dict
+# 表达任务字段，是 Python 教学代码里常见的轻量做法。
 def scan_unclaimed_tasks() -> list:
     TASKS_DIR.mkdir(exist_ok=True)
     unclaimed = []
     for f in sorted(TASKS_DIR.glob("task_*.json")):
         task = json.loads(f.read_text())
+        # 只有 pending、没有 owner、没有 blockedBy 的任务才可以被自动领取。
         if (task.get("status") == "pending"
                 and not task.get("owner")
                 and not task.get("blockedBy")):
@@ -140,6 +159,7 @@ def scan_unclaimed_tasks() -> list:
 
 
 def claim_task(task_id: int, owner: str) -> str:
+    # 认领任务必须加锁：两个 teammate 线程可能同时看到同一个 pending 任务。
     with _claim_lock:
         path = TASKS_DIR / f"task_{task_id}.json"
         if not path.exists():
@@ -153,6 +173,7 @@ def claim_task(task_id: int, owner: str) -> str:
             return f"Error: Task {task_id} cannot be claimed because its status is '{status}'"
         if task.get("blockedBy"):
             return f"Error: Task {task_id} is blocked by other task(s) and cannot be claimed yet"
+        # 修改内存 dict 后写回 JSON 文件，这就是本课的“持久化状态”。
         task["owner"] = owner
         task["status"] = "in_progress"
         path.write_text(json.dumps(task, indent=2))
@@ -160,6 +181,9 @@ def claim_task(task_id: int, owner: str) -> str:
 
 
 # 身份再注入：上下文被压缩后，用一个短块提醒模型“我是谁”。
+#
+# LLM 上下文可能被裁剪或压缩。和传统程序不同，模型的“身份”存在 prompt 里；
+# 所以恢复工作前要把 name/role/team 再放回 messages。
 def make_identity_block(name: str, role: str, team_name: str) -> dict:
     return {
         "role": "user",
@@ -168,6 +192,8 @@ def make_identity_block(name: str, role: str, team_name: str) -> dict:
 
 
 # Autonomous TeammateManager：把 work/idle/poll 这几个阶段串成队友生命周期。
+#
+# s09/s10 的队友主要“被动等消息”；s11 的队友在 idle 阶段会主动找任务。
 class TeammateManager:
     def __init__(self, team_dir: Path):
         self.dir = team_dir
@@ -191,12 +217,14 @@ class TeammateManager:
         return None
 
     def _set_status(self, name: str, status: str):
+        # 小工具方法：集中更新状态，避免每个分支都重复 find + save。
         member = self._find_member(name)
         if member:
             member["status"] = status
             self._save_config()
 
     def spawn(self, name: str, role: str, prompt: str) -> str:
+        # prompt 是初始任务；后续任务可能来自 inbox，也可能来自 .tasks 看板。
         member = self._find_member(name)
         if member:
             if member["status"] not in ("idle", "shutdown"):
@@ -217,6 +245,8 @@ class TeammateManager:
         return f"Spawned '{name}' (role: {role})"
 
     def _loop(self, name: str, role: str, prompt: str):
+        # 这个 loop 是本课核心：外层 while True 管生命周期，
+        # 内层 for 管一次 WORK 阶段的工具调用轮数。
         team_name = self.config["team_name"]
         sys_prompt = (
             f"You are '{name}', role: {role}, team: {team_name}, at {WORKDIR}. "
@@ -227,10 +257,14 @@ class TeammateManager:
 
         while True:
             # -- WORK PHASE: standard agent loop --
+            # 工作阶段和前几课一样：模型如果继续调用工具，就继续跑；
+            # 如果模型调用 idle 工具，说明它主动进入空闲阶段。
             for _ in range(50):
                 inbox = BUS.read_inbox(name)
                 for msg in inbox:
                     if msg.get("type") == "shutdown_request":
+                        # 这里直接退出，是 s11 的简化版 graceful shutdown。
+                        # s10 演示了更完整的 request/response 协议。
                         self._set_status(name, "shutdown")
                         return
                     messages.append({"role": "user", "content": json.dumps(msg)})
@@ -253,6 +287,7 @@ class TeammateManager:
                 for block in response.content:
                     if block.type == "tool_use":
                         if block.name == "idle":
+                            # idle 是给模型的显式“我没活了”按钮。
                             idle_requested = True
                             output = "Entering idle phase. Will poll for new tasks."
                         else:
@@ -268,6 +303,8 @@ class TeammateManager:
                     break
 
             # -- IDLE PHASE: poll for inbox messages and unclaimed tasks --
+            # 空闲阶段不调用模型，先用普通 Python 代码检查是否有新事件。
+            # 这样比每 5 秒问一次模型更便宜，也更可控。
             self._set_status(name, "idle")
             resume = False
             polls = IDLE_TIMEOUT // max(POLL_INTERVAL, 1)
@@ -275,6 +312,7 @@ class TeammateManager:
                 time.sleep(POLL_INTERVAL)
                 inbox = BUS.read_inbox(name)
                 if inbox:
+                    # inbox 有消息就恢复 WORK 阶段，把消息塞入上下文让模型处理。
                     for msg in inbox:
                         if msg.get("type") == "shutdown_request":
                             self._set_status(name, "shutdown")
@@ -287,12 +325,14 @@ class TeammateManager:
                     task = unclaimed[0]
                     result = claim_task(task["id"], name)
                     if result.startswith("Error:"):
+                        # 可能被别的线程抢先认领了，继续下一轮轮询即可。
                         continue
                     task_prompt = (
                         f"<auto-claimed>Task #{task['id']}: {task['subject']}\n"
                         f"{task.get('description', '')}</auto-claimed>"
                     )
                     if len(messages) <= 3:
+                        # 如果上下文很短，主动补一段 identity，避免模型忘记自己是谁。
                         messages.insert(0, make_identity_block(name, role, team_name))
                         messages.insert(1, {"role": "assistant", "content": f"I am {name}. Continuing."})
                     messages.append({"role": "user", "content": task_prompt})
@@ -301,12 +341,13 @@ class TeammateManager:
                     break
 
             if not resume:
+                # 空闲超时后关闭，避免后台线程无限存活。
                 self._set_status(name, "shutdown")
                 return
             self._set_status(name, "working")
 
     def _exec(self, sender: str, tool_name: str, args: dict) -> str:
-        # these base tools are unchanged from s02
+        # 工具执行仍是集中分发；s11 新增 claim_task，让模型也可以主动领指定任务。
         if tool_name == "bash":
             return _run_bash(args["command"])
         if tool_name == "read_file":
@@ -340,11 +381,12 @@ class TeammateManager:
             )
             return f"Plan submitted (request_id={req_id}). Waiting for approval."
         if tool_name == "claim_task":
+            # 自动认领用 Python 代码触发；模型也可以通过工具显式认领。
             return claim_task(args["task_id"], sender)
         return f"Unknown tool: {tool_name}"
 
     def _teammate_tools(self) -> list:
-        # these base tools are unchanged from s02
+        # idle 是这一课的关键工具：它让模型把控制权交还给 Python 调度循环。
         return [
             {"name": "bash", "description": "Run a shell command.",
              "input_schema": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}},
@@ -440,6 +482,7 @@ def _run_edit(path: str, old_text: str, new_text: str) -> str:
 
 # Lead 专属协议处理：和 s10 相同，只是队友现在会自主空闲和领任务。
 def handle_shutdown_request(teammate: str) -> str:
+    # lead 仍然可以发 shutdown_request；队友在 WORK/IDLE 两个阶段都会检查它。
     req_id = str(uuid.uuid4())[:8]
     with _tracker_lock:
         shutdown_requests[req_id] = {"target": teammate, "status": "pending"}
@@ -471,6 +514,7 @@ def _check_shutdown_status(request_id: str) -> str:
 
 # Lead 的工具分发表：增加 idle/claim_task，配合自主任务看板。
 TOOL_HANDLERS = {
+    # 这里把 claim_task 也暴露给 lead，方便手动测试任务看板状态变化。
     "bash":              lambda **kw: _run_bash(kw["command"]),
     "read_file":         lambda **kw: _run_read(kw["path"], kw.get("limit")),
     "write_file":        lambda **kw: _run_write(kw["path"], kw["content"]),
@@ -524,6 +568,7 @@ def agent_loop(messages: list):
     while True:
         inbox = BUS.read_inbox("lead")
         if inbox:
+            # 自主 teammate 可能在后台发消息给 lead，所以 lead 每轮都先 drain inbox。
             messages.append({
                 "role": "user",
                 "content": f"<inbox>{json.dumps(inbox, indent=2)}</inbox>",
@@ -572,6 +617,7 @@ if __name__ == "__main__":
             print(json.dumps(BUS.read_inbox("lead"), indent=2))
             continue
         if query.strip() == "/tasks":
+            # CLI 辅助命令：不经过模型，直接列出 .tasks 看板，方便观察自主认领效果。
             TASKS_DIR.mkdir(exist_ok=True)
             for f in sorted(TASKS_DIR.glob("task_*.json")):
                 t = json.loads(f.read_text())

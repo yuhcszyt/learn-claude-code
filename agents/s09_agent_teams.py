@@ -41,6 +41,11 @@ its own agent loop in a separate thread. Communication via append-only inboxes.
     +-------------------------+-----------------------------------+
 
 Key insight: "Teammates that can talk to each other."
+
+中文学习提示：
+    这一课把“单个 agent loop”扩展成“多个长期存活的队友”。
+    如果你来自 Java，可以把每个 teammate 理解成一个 Runnable，
+    MessageBus 则像一个非常轻量的文件版消息队列。
 """
 
 import json
@@ -60,7 +65,11 @@ except ImportError:
 load_dotenv(override=True)
 
 WORKDIR = Path.cwd()
-# 每个队友线程都复用这个 OpenAI 兼容客户端配置。
+# Path.cwd() 类似 Java 里的 Paths.get("").toAbsolutePath()，
+# 后续所有文件读写都会以这个目录作为工作区边界。
+#
+# 每个队友线程都复用这个 OpenAI 兼容客户端配置。这里为了课程简洁，
+# 没有做客户端池或依赖注入，重点放在 harness 结构本身。
 client = OpenAICompatibleClient.from_env()
 MODEL = client.model
 TEAM_DIR = WORKDIR / ".team"
@@ -78,13 +87,19 @@ VALID_MSG_TYPES = {
 
 
 # MessageBus：每个队友一个 JSONL inbox，类似用文件系统实现极简消息队列。
+#
+# JSONL = JSON Lines：一行一个 JSON 对象。相比保存一个大 JSON 数组，
+# 追加一条消息只需要往文件末尾写一行，适合演示“append-only inbox”。
 class MessageBus:
     def __init__(self, inbox_dir: Path):
         self.dir = inbox_dir
+        # exist_ok=True 类似 Java Files.createDirectories：目录存在也不报错。
         self.dir.mkdir(parents=True, exist_ok=True)
 
     def send(self, sender: str, to: str, content: str,
              msg_type: str = "message", extra: dict = None) -> str:
+        # Python 的默认参数可以直接写在函数签名里；extra=None 表示可选参数。
+        # 注意：不要用 extra={} 作为默认值，因为可变默认值会在多次调用间共享。
         if msg_type not in VALID_MSG_TYPES:
             return f"Error: Invalid type '{msg_type}'. Valid: {VALID_MSG_TYPES}"
         msg = {
@@ -94,8 +109,10 @@ class MessageBus:
             "timestamp": time.time(),
         }
         if extra:
+            # dict.update 类似 Java Map.putAll，把 extra 字段并入消息。
             msg.update(extra)
         inbox_path = self.dir / f"{to}.jsonl"
+        # "a" 是 append 模式；每次发送只追加一行，不读取旧内容。
         with open(inbox_path, "a") as f:
             f.write(json.dumps(msg) + "\n")
         return f"Sent {msg_type} to {to}"
@@ -108,6 +125,7 @@ class MessageBus:
         for line in inbox_path.read_text().strip().splitlines():
             if line:
                 messages.append(json.loads(line))
+        # 读完后清空 inbox，这叫 drain。语义上像从 BlockingQueue 里 take 掉消息。
         inbox_path.write_text("")
         return messages
 
@@ -124,8 +142,12 @@ BUS = MessageBus(INBOX_DIR)
 
 
 # TeammateManager：管理“持久队友”的生命周期和线程。
+#
+# 和前几课的 subagent 不同，teammate 不是一次性函数调用：
+# 它会被记录到 .team/config.json，然后在自己的线程里运行 agent loop。
 class TeammateManager:
     def __init__(self, team_dir: Path):
+        # Python 的 self 类似 Java 的 this；实例字段通常在 __init__ 中创建。
         self.dir = team_dir
         self.dir.mkdir(exist_ok=True)
         self.config_path = self.dir / "config.json"
@@ -144,9 +166,13 @@ class TeammateManager:
         for m in self.config["members"]:
             if m["name"] == name:
                 return m
+        # 这里返回 None，但类型标注写的是 dict，是为了保持课程代码短。
+        # 生产代码里可以写 dict | None，让类型含义更精确。
         return None
 
     def spawn(self, name: str, role: str, prompt: str) -> str:
+        # spawn 既负责“登记队友”，也负责“启动线程”。
+        # 如果队友已存在且空闲，就复用名字；如果正在工作，就拒绝重复启动。
         member = self._find_member(name)
         if member:
             if member["status"] not in ("idle", "shutdown"):
@@ -160,6 +186,8 @@ class TeammateManager:
         thread = threading.Thread(
             target=self._teammate_loop,
             args=(name, role, prompt),
+            # daemon=True 表示主程序退出时不强行等待这个线程。
+            # Java 里也有 daemon thread，适合这种教学用后台 worker。
             daemon=True,
         )
         self.threads[name] = thread
@@ -167,6 +195,8 @@ class TeammateManager:
         return f"Spawned '{name}' (role: {role})"
 
     def _teammate_loop(self, name: str, role: str, prompt: str):
+        # 每个队友都有自己的 system prompt 和 messages 历史。
+        # 这相当于每个线程持有自己的会话状态，不和 lead 的 history 混在一起。
         sys_prompt = (
             f"You are '{name}', role: {role}, at {WORKDIR}. "
             f"Use send_message to communicate. Complete your task."
@@ -174,8 +204,11 @@ class TeammateManager:
         messages = [{"role": "user", "content": prompt}]
         tools = self._teammate_tools()
         for _ in range(50):
+            # for _ in range(50) 是 Python 里常见的“最多循环 N 次”写法。
+            # 下划线变量表示这个循环计数值本身不会被使用。
             inbox = BUS.read_inbox(name)
             for msg in inbox:
+                # inbox 消息被塞回 messages，让模型在下一轮看到“别人对我说了什么”。
                 messages.append({"role": "user", "content": json.dumps(msg)})
             try:
                 response = client.messages.create(
@@ -189,6 +222,7 @@ class TeammateManager:
                 break
             messages.append({"role": "assistant", "content": response.content})
             if response.stop_reason != "tool_use":
+                # 没有工具调用时，说明模型这轮已经给出最终回复，队友可以回到 idle。
                 break
             results = []
             for block in response.content:
@@ -200,6 +234,8 @@ class TeammateManager:
                         "tool_use_id": block.id,
                         "content": str(output),
                     })
+            # Anthropic/OpenAI 风格的工具协议通常是：
+            # assistant 请求 tool_use，user 再把 tool_result 送回去。
             messages.append({"role": "user", "content": results})
         member = self._find_member(name)
         if member and member["status"] != "shutdown":
@@ -207,7 +243,8 @@ class TeammateManager:
             self._save_config()
 
     def _exec(self, sender: str, tool_name: str, args: dict) -> str:
-        # these base tools are unchanged from s02
+        # 工具分发：根据模型要求的 tool_name 调用对应 Python 函数。
+        # 这里用 if 链保持可读；Java 里可能会用 switch 或 Map<String, Handler>。
         if tool_name == "bash":
             return _run_bash(args["command"])
         if tool_name == "read_file":
@@ -223,7 +260,8 @@ class TeammateManager:
         return f"Unknown tool: {tool_name}"
 
     def _teammate_tools(self) -> list:
-        # these base tools are unchanged from s02
+        # 工具 schema 本质上是普通的 list/dict 字面量。
+        # Python 字典很适合表达 JSON-like 配置，不需要先定义一堆 POJO。
         return [
             {"name": "bash", "description": "Run a shell command.",
              "input_schema": {"type": "object", "properties": {"command": {"type": "string"}}, "required": ["command"]}},
@@ -257,6 +295,7 @@ TEAM = TeammateManager(TEAM_DIR)
 # 基础工具实现：队友和 lead 都通过这些函数访问 shell/文件。
 def _safe_path(p: str) -> Path:
     path = (WORKDIR / p).resolve()
+    # resolve() 会把相对路径、.. 等归一化；is_relative_to 防止工具逃出仓库。
     if not path.is_relative_to(WORKDIR):
         raise ValueError(f"Path escapes workspace: {p}")
     return path
@@ -267,6 +306,8 @@ def _run_bash(command: str) -> str:
     if any(d in command for d in dangerous):
         return "Error: Dangerous command blocked"
     try:
+        # subprocess.run 类似 Java ProcessBuilder.start() + waitFor()，
+        # capture_output=True 会收集 stdout/stderr，text=True 返回字符串而不是 bytes。
         r = subprocess.run(
             command, shell=True, cwd=WORKDIR,
             capture_output=True, text=True, timeout=120,
@@ -303,6 +344,7 @@ def _run_edit(path: str, old_text: str, new_text: str) -> str:
         c = fp.read_text()
         if old_text not in c:
             return f"Error: Text not found in {path}"
+        # replace(..., 1) 只替换第一处，避免一次误改多个相同片段。
         fp.write_text(c.replace(old_text, new_text, 1))
         return f"Edited {path}"
     except Exception as e:
@@ -311,6 +353,8 @@ def _run_edit(path: str, old_text: str, new_text: str) -> str:
 
 # Lead 的工具分发表：包含基础工具、队友管理和消息通信。
 TOOL_HANDLERS = {
+    # lambda **kw 接收“任意关键字参数”，类似把 JSON 参数包解成方法入参。
+    # 这让 agent_loop 可以统一写 handler(**block.input)。
     "bash":            lambda **kw: _run_bash(kw["command"]),
     "read_file":       lambda **kw: _run_read(kw["path"], kw.get("limit")),
     "write_file":      lambda **kw: _run_write(kw["path"], kw["content"]),
@@ -346,6 +390,8 @@ TOOLS = [
 
 
 def agent_loop(messages: list):
+    # lead 的主循环和队友循环形状相同：
+    # 读取 inbox -> 调模型 -> 执行工具 -> 把结果喂回模型。
     while True:
         inbox = BUS.read_inbox("lead")
         if inbox:
@@ -368,6 +414,8 @@ def agent_loop(messages: list):
             if block.type == "tool_use":
                 handler = TOOL_HANDLERS.get(block.name)
                 try:
+                    # **block.input 是 Python 的关键字参数展开：
+                    # {"path": "a.txt"} 会变成 handler(path="a.txt")。
                     output = handler(**block.input) if handler else f"Unknown tool: {block.name}"
                 except Exception as e:
                     output = f"Error: {e}"
@@ -385,6 +433,7 @@ if __name__ == "__main__":
     history = []
     while True:
         try:
+            # input() 是最小 CLI 入口；每一轮用户输入都会追加到同一个 history。
             query = input("\033[36ms09 >> \033[0m")
         except (EOFError, KeyboardInterrupt):
             break
