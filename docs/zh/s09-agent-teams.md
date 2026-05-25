@@ -121,7 +121,10 @@ python agents/s09_agent_teams.py
 试试这些 prompt (英文 prompt 对 LLM 效果更好, 也可以用中文):
 
 1. `Spawn alice (coder) and bob (tester). Have alice send bob a message.`
+   中文: `创建 alice (coder) 和 bob (tester)。让 alice 给 bob 发一条消息。`
 2. `Broadcast "status update: phase 1 complete" to all teammates`
+   中文: `向所有队友广播 "status update: phase 1 complete"`
 3. `Check the lead inbox for any messages`
+   中文: `检查 lead 的收件箱里有没有消息`
 4. 输入 `/team` 查看团队名册和状态
 5. 输入 `/inbox` 手动检查领导的收件箱
