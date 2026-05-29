@@ -113,6 +113,10 @@ python agents/s01_agent_loop.py
 试试这些 prompt (英文 prompt 对 LLM 效果更好, 也可以用中文):
 
 1. `Create a file called hello.py that prints "Hello, World!"`
+   中文: `创建一个 hello.py 文件，内容是打印 "Hello, World!"`
 2. `List all Python files in this directory`
+   中文: `列出当前目录里的所有 Python 文件`
 3. `What is the current git branch?`
+   中文: `当前 git 分支是什么？`
 4. `Create a directory called test_output and write 3 files in it`
+   中文: `创建一个名为 test_output 的目录，并在里面写入 3 个文件`

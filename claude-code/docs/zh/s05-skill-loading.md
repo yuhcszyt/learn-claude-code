@@ -105,6 +105,10 @@ python agents/s05_skill_loading.py
 试试这些 prompt (英文 prompt 对 LLM 效果更好, 也可以用中文):
 
 1. `What skills are available?`
+   中文: `现在有哪些可用的 skill？`
 2. `Load the agent-builder skill and follow its instructions`
+   中文: `加载 agent-builder skill，并按照它的说明执行`
 3. `I need to do a code review -- load the relevant skill first`
+   中文: `我需要做代码审查，先加载相关的 skill`
 4. `Build an MCP server using the mcp-builder skill`
+   中文: `使用 mcp-builder skill 构建一个 MCP server`

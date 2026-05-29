@@ -94,5 +94,8 @@ python agents/s03_todo_write.py
 试试这些 prompt (英文 prompt 对 LLM 效果更好, 也可以用中文):
 
 1. `Refactor the file hello.py: add type hints, docstrings, and a main guard`
+   中文: `重构 hello.py：添加类型注解、docstring 和 main guard`
 2. `Create a Python package with __init__.py, utils.py, and tests/test_utils.py`
+   中文: `创建一个 Python 包，包含 __init__.py、utils.py 和 tests/test_utils.py`
 3. `Review all Python files and fix any style issues`
+   中文: `检查所有 Python 文件，并修复代码风格问题`

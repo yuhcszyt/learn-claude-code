@@ -117,7 +117,12 @@ python agents/s12_worktree_task_isolation.py
 试试这些 prompt (英文 prompt 对 LLM 效果更好, 也可以用中文):
 
 1. `Create tasks for backend auth and frontend login page, then list tasks.`
+   中文: `为后端认证和前端登录页创建任务，然后列出任务`
 2. `Create worktree "auth-refactor" for task 1, then bind task 2 to a new worktree "ui-login".`
+   中文: `为任务 1 创建 worktree "auth-refactor"，然后把任务 2 绑定到新的 worktree "ui-login"`
 3. `Run "git status --short" in worktree "auth-refactor".`
+   中文: `在 worktree "auth-refactor" 中运行 "git status --short"`
 4. `Keep worktree "ui-login", then list worktrees and inspect events.`
+   中文: `保留 worktree "ui-login"，然后列出 worktree 并查看事件`
 5. `Remove worktree "auth-refactor" with complete_task=true, then list tasks/worktrees/events.`
+   中文: `用 complete_task=true 移除 worktree "auth-refactor"，然后列出 tasks/worktrees/events`

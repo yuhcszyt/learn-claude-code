@@ -1,0 +1,6 @@
+{
+  "enabledMcpjsonServers": [
+    "akshare-one-mcp"
+  ],
+  "enableAllProjectMcpServers": true
+}

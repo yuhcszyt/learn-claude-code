@@ -214,6 +214,7 @@ class TeammateManager:
         tools = self._teammate_tools()
         should_exit = False
         # should_exit 是线程内部状态；只有队友批准 shutdown 后才会变成 True。
+        print(f"  [{name}] 正在启动...")
         for _ in range(50):
             inbox = BUS.read_inbox(name)
             for msg in inbox:
@@ -224,6 +225,7 @@ class TeammateManager:
             if should_exit:
                 break
             try:
+                print(f"  [{name}] 模型请求：{messages[-1]['content'][:120]}")
                 response = client.messages.create(
                     model=MODEL,
                     system=sys_prompt,
@@ -231,6 +233,7 @@ class TeammateManager:
                     tools=tools,
                     max_tokens=8000,
                 )
+                print(f"  [{name}] 模型回复：{response.content[:120]}")
             except Exception:
                 break
             messages.append({"role": "assistant", "content": response.content})
@@ -239,8 +242,9 @@ class TeammateManager:
             results = []
             for block in response.content:
                 if block.type == "tool_use":
+                    print(f"  [{name}] 调用工具：{block.name}")
                     output = self._exec(name, block.name, block.input)
-                    print(f"  [{name}] 调用 {block.name}: {str(output)[:120]}")
+                    print(f"  [{name}] 调用完工具 {block.name}: {str(output)[:120]}")
                     results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
@@ -248,6 +252,7 @@ class TeammateManager:
                     })
                     if block.name == "shutdown_response" and block.input.get("approve"):
                         # 模型用工具表达“我同意关闭”；真正停止线程的是 Python 控制流。
+                        print(f"  [{name}] 线程已关闭")
                         should_exit = True
             messages.append({"role": "user", "content": results})
         member = self._find_member(name)

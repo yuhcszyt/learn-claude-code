@@ -93,5 +93,8 @@ python agents/s04_subagent.py
 试试这些 prompt (英文 prompt 对 LLM 效果更好, 也可以用中文):
 
 1. `Use a subtask to find what testing framework this project uses`
+   中文: `使用一个子任务，找出这个项目使用了什么测试框架`
 2. `Delegate: read all .py files and summarize what each one does`
+   中文: `委托子代理读取所有 .py 文件，并总结每个文件的作用`
 3. `Use a task to create a new module, then verify it from here`
+   中文: `使用一个任务创建新模块，然后在主代理这里验证结果`

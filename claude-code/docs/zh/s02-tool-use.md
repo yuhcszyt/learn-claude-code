@@ -96,6 +96,10 @@ python agents/s02_tool_use.py
 试试这些 prompt (英文 prompt 对 LLM 效果更好, 也可以用中文):
 
 1. `Read the file requirements.txt`
+   中文: `读取 requirements.txt 文件`
 2. `Create a file called greet.py with a greet(name) function`
+   中文: `创建一个 greet.py 文件，里面包含 greet(name) 函数`
 3. `Edit greet.py to add a docstring to the function`
+   中文: `编辑 greet.py，给函数添加 docstring 注释`
 4. `Read greet.py to verify the edit worked`
+   中文: `读取 greet.py，确认刚才的修改生效了`

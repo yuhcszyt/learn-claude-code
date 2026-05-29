@@ -128,15 +128,13 @@ python agents/s07_task_system.py
 试试这些 prompt (英文 prompt 对 LLM 效果更好, 也可以用中文):
 
 1. `Create 3 tasks: "Setup project", "Write code", "Write tests". Make them depend on each other in order.`
+   中文: `创建 3 个任务："初始化项目"、"编写代码"、"编写测试"。让它们按顺序互相依赖。`
 2. `List all tasks and show the dependency graph`
+   中文: `列出所有任务，并展示任务之间的依赖关系图`
 3. `Complete task 1 and then list tasks to see task 2 unblocked`
+   中文: `完成任务 1，然后列出任务，查看任务 2 是否被解锁`
 4. `Create a task board for refactoring: parse -> transform -> emit -> test, where transform and emit can run in parallel after parse`
-
-
-
-创建 3 个任务：“初始化项目”、“编写代码”、“编写测试”。让它们按顺序互相依赖。
-
-列出所有任务，并展示任务之间的依赖关系图。
+   中文: `创建一个重构任务看板：parse -> transform -> emit -> test，其中 transform 和 emit 可以在 parse 之后并行执行`
 
 完成任务 1，然后再次列出任务，看看任务 2 是否已经解除阻塞。
 

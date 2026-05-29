@@ -138,7 +138,10 @@ python agents/s11_autonomous_agents.py
 试试这些 prompt (英文 prompt 对 LLM 效果更好, 也可以用中文):
 
 1. `Create 3 tasks on the board, then spawn alice and bob. Watch them auto-claim.`
+   中文: `在任务看板上创建 3 个任务，然后创建 alice 和 bob，观察他们自动认领任务。`
 2. `Spawn a coder teammate and let it find work from the task board itself`
+   中文: `创建一个 coder 队友，让它自己从任务看板里找工作`
 3. `Create tasks with dependencies. Watch teammates respect the blocked order.`
+   中文: `创建带依赖关系的任务，观察队友是否遵守阻塞顺序`
 4. 输入 `/tasks` 查看带 owner 的任务看板
 5. 输入 `/team` 监控谁在工作、谁在空闲
