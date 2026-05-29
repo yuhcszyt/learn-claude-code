@@ -74,7 +74,7 @@ class OpenAICompatibleClient:
         api_key = os.getenv("OPENAI_API_KEY")
         base_url = os.getenv("OPENAI_BASE_URL") or None
         model = os.getenv("OPENAI_MODEL") or os.getenv("MODEL_ID")
-
+        print("Using OpenAI API key: %s", api_key)
         missing = []
         if not api_key:
             missing.append("OPENAI_API_KEY")
