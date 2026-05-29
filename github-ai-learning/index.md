@@ -1,10 +1,22 @@
-# GitHub AI 项目学习索引
+---
+type: moc
+tags:
+  - github-ai-learning
+  - moc
+---
 
-| 日期 | 项目 | 主题 | 状态 | 笔记 |
-| --- | --- | --- | --- | --- |
-| 2026-05-29 | oficcejo/aiagents-stock | A 股多智能体分析和盯盘系统 | reading | `records/2026-05-29-aiagents-stock.md` |
-| 2026-05-29 | yuhcszyt/freqtrade | 加密货币交易机器人、回测和风控工程 | reading | `records/2026-05-29-freqtrade.md` |
-| 待定 | 待选择 | 第一个 AI 项目精读 | planned | - |
+# GitHub AI 项目学习笔记
+
+## 项目笔记
+
+- [[notes/ecc|affaan-m/ECC]] - 跨 AI 编码工具的 Codex/Claude Code 配置、skills、MCP 和安装边界；状态：reading。
+- [[notes/aiagents-stock|oficcejo/aiagents-stock]] - A 股多智能体分析和盯盘系统；状态：reading。
+- [[notes/freqtrade|yuhcszyt/freqtrade]] - 加密货币交易机器人、回测和风控工程；状态：reading。
+- [[notes/moneyprinterturbo|harry0703/MoneyPrinterTurbo]] - AI 短视频生成和多模型接入；状态：reading。
+
+## 候选项目
+
+- [[watchlist|候选项目清单]]
 
 ## 状态说明
 

@@ -1,9 +1,17 @@
-# 项目学习记录：项目名
+---
+repo:
+status: reading
+topics:
+  - Agent
+tags:
+  - github-ai-learning
+---
 
-> 日期：YYYY-MM-DD  
-> GitHub：  
-> 方向：Agent / RAG / MCP / Workflow / Coding Agent / Infra  
-> 状态：planned / reading / reproduced / summarized / applied
+# 项目名
+
+[[index|返回学习笔记索引]]
+
+> 状态可选：planned / reading / reproduced / summarized / applied
 
 ## 1. 为什么学这个项目
 
@@ -48,8 +56,8 @@
 
 ## 6. 本地复现
 
-```powershell
-# 记录安装和运行命令
+```bash
+# 维护安装和运行命令
 ```
 
 - 是否成功：

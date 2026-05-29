@@ -226,6 +226,7 @@ claude-code/agents/example.txt
 
 # JetBrains / local IDE state
 .idea/
+*.lnk
 
 # CodeGraph local index
 .codegraph/

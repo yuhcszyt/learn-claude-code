@@ -1,6 +1,15 @@
+---
+type: watchlist
+tags:
+  - github-ai-learning
+  - watchlist
+---
+
 # 候选项目清单
 
-这里先放想学但还没正式记录的 GitHub AI 项目。开始学习后，把项目移动到 `records/` 下的正式笔记，并在 `index.md` 建索引。
+[[index|返回学习笔记索引]]
+
+这里先放想学但还没正式维护笔记的 GitHub AI 项目。开始学习后，把项目移动到 `notes/` 下的正式笔记，并在 [[index|学习笔记索引]] 建双链。
 
 | 项目 | 方向 | 为什么值得看 | 优先级 |
 | --- | --- | --- | --- |

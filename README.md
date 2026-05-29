@@ -6,7 +6,7 @@ This repository is a personal learning lab for agent engineering, LLM applicatio
 
 - `claude-code/` - Claude Code style harness engineering course material, runnable Python agents, skills, tests, and the learning website.
 - `langchain/` - reserved workspace for LangChain and LangGraph experiments.
-- `github-ai-learning/` - study notes for GitHub AI projects, including source reading, reproduction notes, and reusable takeaways.
+- `github-ai-learning/` - Obsidian-friendly study notes for GitHub AI projects, including source reading, reproduction notes, and reusable takeaways.
 - `stock-research/` - A-share research tooling with `akshare-one-mcp`, repeatable Python reports, and risk checks.
 - `shared/` - cross-topic utilities, templates, and notes that do not belong to a single learning area.
 - `docs/` - repository-level learning roadmap and index.
