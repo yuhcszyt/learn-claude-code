@@ -49,8 +49,10 @@ Mac quick start:
 
 ## GitHub Learning Notes
 
-- When a user sends a GitHub repository for learning, evaluation, or comparison, answer the request and maintain an Obsidian study note for that project.
-- Treat `github-ai-learning/` as an Obsidian vault: use `index.md` as the MOC, `[[wikilinks]]` for navigation, and YAML frontmatter for metadata.
+- When a user sends a GitHub repository for learning, evaluation, or comparison, first answer the user's learning request directly.
+- Do not automatically create Obsidian study notes for every repository discussion. After answering, ask whether the user wants a study note generated.
+- Create or update notes in `github-ai-learning/` only when the user explicitly asks for notes or confirms after being asked.
+- When creating notes, treat `github-ai-learning/` as an Obsidian vault: use `index.md` as the MOC, `[[wikilinks]]` for navigation, and YAML frontmatter for metadata.
 - Use one stable file per project in `github-ai-learning/notes/project-name.md`; update the same note on later visits instead of creating date-based duplicates.
 - Update `github-ai-learning/index.md` only when adding a new project note.
 - Each note should include: repository link, why it matters, core ideas, reusable techniques, and a fast start section for macOS.

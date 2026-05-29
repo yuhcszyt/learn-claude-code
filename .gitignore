@@ -228,6 +228,10 @@ claude-code/agents/example.txt
 .idea/
 *.lnk
 
+# Obsidian local workspace state
+.obsidian/
+**/.obsidian/
+
 # CodeGraph local index
 .codegraph/
 
