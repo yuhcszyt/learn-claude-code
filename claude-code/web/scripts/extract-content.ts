@@ -10,9 +10,9 @@ import type {
 import { VERSION_META, VERSION_ORDER, LEARNING_PATH } from "../src/lib/constants";
 
 const WEB_DIR = path.resolve(__dirname, "..");
-const REPO_ROOT = path.resolve(WEB_DIR, "..");
-const LEGACY_AGENTS_DIR = path.join(REPO_ROOT, "agents");
-const LEGACY_DOCS_DIR = path.join(REPO_ROOT, "docs");
+const COURSE_ROOT = path.resolve(WEB_DIR, "..");
+const LEGACY_AGENTS_DIR = path.join(COURSE_ROOT, "agents");
+const LEGACY_DOCS_DIR = path.join(COURSE_ROOT, "docs");
 const OUT_DIR = path.join(WEB_DIR, "src", "data", "generated");
 const PUBLIC_DIR = path.join(WEB_DIR, "public");
 const COURSE_ASSETS_DIR = path.join(PUBLIC_DIR, "course-assets");
@@ -41,7 +41,7 @@ function filenameToVersionId(filename: string): string | null {
 
 function listRootChapters(): ChapterSource[] {
   return fs
-    .readdirSync(REPO_ROOT, { withFileTypes: true })
+    .readdirSync(COURSE_ROOT, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .filter((name) => /^s\d{2}_/.test(name))
@@ -49,7 +49,7 @@ function listRootChapters(): ChapterSource[] {
     .map((dirName) => {
       const id = dirToVersionId(dirName);
       if (!id) return null;
-      const dirPath = path.join(REPO_ROOT, dirName);
+      const dirPath = path.join(COURSE_ROOT, dirName);
       const codePath = path.join(dirPath, "code.py");
       if (!fs.existsSync(codePath)) return null;
       return { id, dirName, dirPath, codePath };
@@ -371,7 +371,7 @@ function sortVersions(versions: AgentVersion[]) {
 
 function main() {
   console.log("Extracting course content...");
-  console.log(`  Repo root: ${REPO_ROOT}`);
+  console.log(`  Course root: ${COURSE_ROOT}`);
 
   cleanCourseAssets();
 

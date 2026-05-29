@@ -25,6 +25,7 @@ def load_s_full_module(temp_cwd: Path):
     previous_anthropic = sys.modules.get("anthropic")
     previous_dotenv = sys.modules.get("dotenv")
     previous_cwd = Path.cwd()
+    previous_path = list(sys.path)
     spec = importlib.util.spec_from_file_location("s_full_under_test", MODULE_PATH)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"Unable to load {MODULE_PATH}")
@@ -33,12 +34,16 @@ def load_s_full_module(temp_cwd: Path):
     sys.modules["anthropic"] = fake_anthropic
     sys.modules["dotenv"] = fake_dotenv
     try:
+        sys.path.insert(0, str(MODULE_PATH.parent))
         os.chdir(temp_cwd)
+        os.environ.setdefault("OPENAI_API_KEY", "test-key")
+        os.environ.setdefault("OPENAI_MODEL", "test-model")
         os.environ.setdefault("MODEL_ID", "test-model")
         spec.loader.exec_module(module)
         return module
     finally:
         os.chdir(previous_cwd)
+        sys.path[:] = previous_path
         if previous_anthropic is None:
             sys.modules.pop("anthropic", None)
         else:
