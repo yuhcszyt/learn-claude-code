@@ -6,6 +6,7 @@
 2. A-share research tooling: `stock-research/`
 3. LangChain and LangGraph: `langchain/`
 4. Java to Agent developer roadmap: `docs/java-to-agent-developer-roadmap.md`
+5. GitHub AI project study notes: `github-ai-learning/`
 
 ## Notes
 

@@ -6,6 +6,7 @@
 
 - `claude-code/` - Claude Code 风格 harness 工程课程、可运行 Python agent、skills、测试和学习网站。
 - `langchain/` - LangChain / LangGraph 学习实验区。
+- `github-ai-learning/` - GitHub AI 项目精读记录，用来沉淀源码阅读、复现和迁移笔记。
 - `stock-research/` - A 股研究工具区，包含 `akshare-one-mcp`、可复跑研究脚本、报告和风险检查。
 - `shared/` - 跨主题复用的工具、模板和笔记。
 - `docs/` - 仓库级学习路线图和索引。
