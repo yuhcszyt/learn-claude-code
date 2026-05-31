@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>金榜题名 · 状元榜</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="stage" aria-label="金榜题名状元榜开榜">
+      <div class="palace-roof" aria-hidden="true"></div>
+      <div class="lantern lantern-left" aria-hidden="true"></div>
+      <div class="lantern lantern-right" aria-hidden="true"></div>
+      <div class="cloud cloud-left" aria-hidden="true"></div>
+      <div class="cloud cloud-right" aria-hidden="true"></div>
+
+      <section class="hero">
+        <div class="eyebrow">卷 · 大魁天下</div>
+        <h1>金榜题名 · 状元榜</h1>
+        <p>十年寒窗无人问，一举成名天下知</p>
+      </section>
+
+      <section class="board-shell" aria-label="状元榜榜单">
+        <div class="scroll-rod scroll-rod-top" aria-hidden="true"></div>
+        <div class="scroll-rod scroll-rod-bottom" aria-hidden="true"></div>
+
+        <div class="board-panel" id="board-panel">
+          <div class="decree-stamp" aria-hidden="true">皇榜<br />已开</div>
+
+          <header class="board-header">
+            <span>礼部谨呈</span>
+            <div class="board-title">冠 状元榜</div>
+            <small>殿试十甲 · 金榜张挂</small>
+          </header>
+
+          <ol class="rank-list" id="rank-list" aria-live="polite"></ol>
+
+          <div class="opening-edict" id="opening-edict" aria-hidden="true">
+            <div class="edict-scroll">
+              <span>开榜中</span>
+              <strong>奉天承运，金榜即开</strong>
+            </div>
+          </div>
+
+          <div class="red-silk" id="red-silk" aria-hidden="true">
+            <span></span>
+            <span></span>
+          </div>
+
+          <div class="drop-seal" id="drop-seal" aria-hidden="true">
+            印<br />状元及第
+          </div>
+
+          <div class="particle-field" id="particle-field" aria-hidden="true"></div>
+        </div>
+      </section>
+
+      <form class="ceremony-form" id="ceremony-form">
+        <label for="candidate-name">新科举子</label>
+        <input id="candidate-name" maxlength="12" placeholder="请输入你的名字" autocomplete="off" />
+        <button id="open-button" type="submit" disabled>✧ 开榜</button>
+        <p class="form-error" id="form-error" role="status"></p>
+      </form>
+
+      <p class="result-toast" id="result-toast" role="status">金榜题名，状元及第！</p>
+
+      <div class="flying-name" id="flying-name" aria-hidden="true">
+        <span class="flying-glow"></span>
+        <strong></strong>
+        <small>金榜题名</small>
+      </div>
+    </main>
+
+    <script type="module" src="main.js"></script>
+  </body>
+</html>
