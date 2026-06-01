@@ -54,5 +54,8 @@ Mac quick start:
 - Create or update notes in `github-ai-learning/` only when the user explicitly asks for notes or confirms after being asked.
 - When creating notes, treat `github-ai-learning/` as an Obsidian vault: use `index.md` as the MOC, `[[wikilinks]]` for navigation, and YAML frontmatter for metadata.
 - Use one stable file per project in `github-ai-learning/notes/project-name.md`; update the same note on later visits instead of creating date-based duplicates.
-- Update `github-ai-learning/index.md` only when adding a new project note.
+- Maintain `github-ai-learning/index.md` and `github-ai-learning/watchlist.md` together with the note:
+  - when adding a new project note, add it to `index.md`;
+  - if the project already exists in `watchlist.md`, remove it from the candidate table or mark that it has moved to notes;
+  - if the user discusses a repository but does not want a note yet, consider adding or updating it in `watchlist.md` instead.
 - Each note should include: repository link, why it matters, core ideas, reusable techniques, and a fast start section for macOS.
