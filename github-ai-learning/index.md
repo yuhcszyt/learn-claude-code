@@ -9,6 +9,7 @@ tags:
 
 ## 项目笔记
 
+- [[notes/scrapling|D4Vinci/Scrapling]] - Python 自适应网页抓取框架，支持 Fetcher、Spider、CLI、MCP 和 AI agent 集成；状态：reading。
 - [[notes/ecc|affaan-m/ECC]] - 跨 AI 编码工具的 Codex/Claude Code 配置、skills、MCP 和安装边界；状态：reading。
 - [[notes/aiagents-stock|oficcejo/aiagents-stock]] - A 股多智能体分析和盯盘系统；状态：reading。
 - [[notes/freqtrade|yuhcszyt/freqtrade]] - 加密货币交易机器人、回测和风控工程；状态：reading。
